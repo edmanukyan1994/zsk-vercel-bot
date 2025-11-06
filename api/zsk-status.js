@@ -2,8 +2,23 @@ import { Redis } from "@upstash/redis";
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN
+  token: process.env.UPSTASH_REDIS_REST_TOKEN,
 });
+
+function colorForRisk(risk) {
+  switch (risk) {
+    case "high":
+      return "red";
+    case "medium":
+      return "orange";
+    case "low":
+    case "none":
+      return "green";
+    case "unknown":
+    default:
+      return "gray";
+  }
+}
 
 export default async function handler(req, res) {
   const inn = (req.query?.inn || "").toString();
@@ -11,24 +26,39 @@ export default async function handler(req, res) {
     return res.status(400).json({ ok: false, error: "bad INN" });
   }
 
-  // Пытаемся достать последний результат
+  // 1️⃣ свежие данные (zsk:latest)
   const latest = await redis.hgetall(`zsk:latest:${inn}`);
   if (latest && Object.keys(latest).length) {
-    const updated = latest.updated_at
+    const risk = latest.risk || "unknown";
+    const risk_color = colorForRisk(risk);
+    const updated_at = latest.updated_at
       ? new Date(Number(latest.updated_at) * 1000).toISOString()
       : null;
-    return res.status(200).json({ ok: true, source: "latest", data: { ...latest, updated_at: updated } });
-  }
 
-  // fallback — берём кэш 24ч
-  const cached = await redis.get(`zsk:cache:${inn}`);
-  if (cached) {
     return res.status(200).json({
       ok: true,
-      source: "cache",
-      data: typeof cached === "string" ? JSON.parse(cached) : cached
+      source: "latest",
+      data: { ...latest, updated_at, risk_color },
     });
   }
 
-  return res.status(200).json({ ok: true, data: null });
+  // 2️⃣ fallback — кэш 24ч
+  const cached = await redis.get(`zsk:cache:${inn}`);
+  if (cached) {
+    const parsed = typeof cached === "string" ? JSON.parse(cached) : cached;
+    const risk = parsed.risk || "unknown";
+    const risk_color = colorForRisk(risk);
+
+    return res.status(200).json({
+      ok: true,
+      source: "cache",
+      data: { ...parsed, risk_color },
+    });
+  }
+
+  // 3️⃣ ничего нет
+  return res.status(200).json({
+    ok: true,
+    data: { risk: "unknown", risk_color: "gray" },
+  });
 }
