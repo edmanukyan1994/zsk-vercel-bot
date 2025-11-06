@@ -1,5 +1,16 @@
 {
   "crons": [
-    { "path": "/api/cron-zsk", "schedule": "0 5 * * *" }
-  ]
+    {
+      "path": "/api/cron-zsk",
+      "schedule": "0 5 * * *"
+    }
+  ],
+  "functions": {
+    "api/**/*.js": {
+      "maxDuration": 60
+    }
+  },
+  "engines": {
+    "node": "22.x"
+  }
 }
