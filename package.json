@@ -1,0 +1,9 @@
+{
+  "name": "zsk-vercel-bot",
+  "version": "1.0.0",
+  "type": "module",
+  "engines": { "node": "18.x" },
+  "dependencies": {
+    "@upstash/redis": "^1.30.0"
+  }
+}
