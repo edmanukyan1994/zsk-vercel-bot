@@ -3,21 +3,24 @@ import { Redis } from "@upstash/redis";
 export const config = { runtime: "edge" };
 
 const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!
+  url: process.env.UPSTASH_REDIS_REST_URL || "",
+  token: process.env.UPSTASH_REDIS_REST_TOKEN || ""
 });
 
 export default async function handler(req: Request) {
   if (req.method !== "POST") {
     return new Response(
       JSON.stringify({ ok: false, error: "Method not allowed" }),
-      { status: 405, headers: { "Content-Type": "application/json" } }
+      {
+        status: 405,
+        headers: { "Content-Type": "application/json" }
+      }
     );
   }
 
   try {
-    // 1) Берём всех поставщиков (ИНН) из множества
-    const suppliers = await redis.smembers<string>("zsk:suppliers");
+    // 1) Все поставщики (ИНН) из множества
+    const suppliers: string[] = await redis.smembers("zsk:suppliers");
 
     if (!suppliers || !suppliers.length) {
       return new Response(
@@ -28,7 +31,7 @@ export default async function handler(req: Request) {
 
     let queued = 0;
 
-    // 2) Кладём КАЖДЫЙ ИНН в очередь на проверку
+    // 2) Кладём КАЖДЫЙ ИНН в очередь проверки
     for (const inn of suppliers) {
       if (!inn) continue;
 
@@ -39,7 +42,7 @@ export default async function handler(req: Request) {
       queued++;
     }
 
-    // 3) Отчитываемся
+    // 3) Ответ
     return new Response(
       JSON.stringify({
         ok: true,
