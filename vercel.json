@@ -9,8 +9,5 @@
     "api/**/*.js": {
       "maxDuration": 60
     }
-  },
-  "engines": {
-    "node": "22.x"
   }
 }
