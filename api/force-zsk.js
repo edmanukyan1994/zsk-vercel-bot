@@ -3,58 +3,31 @@ import { Redis } from "@upstash/redis";
 export const config = { runtime: "edge" };
 
 const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL || "",
-  token: process.env.UPSTASH_REDIS_REST_TOKEN || ""
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN
 });
 
-export default async function handler(req: Request) {
-  if (req.method !== "POST") {
-    return new Response(
-      JSON.stringify({ ok: false, error: "Method not allowed" }),
-      {
-        status: 405,
-        headers: { "Content-Type": "application/json" }
-      }
-    );
-  }
-
+export default async function handler() {
   try {
-    // 1) Все поставщики (ИНН) из множества
-    const suppliers: string[] = await redis.smembers("zsk:suppliers");
+    const suppliers = await redis.smembers("zsk:suppliers");
 
-    if (!suppliers || !suppliers.length) {
-      return new Response(
-        JSON.stringify({ ok: true, suppliers: 0, queued: 0 }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
+    if (!suppliers || suppliers.length === 0) {
+      return new Response(JSON.stringify({ ok: false, error: "no suppliers" }), { status: 200 });
     }
 
     let queued = 0;
 
-    // 2) Кладём КАЖДЫЙ ИНН в очередь проверки
     for (const inn of suppliers) {
-      if (!inn) continue;
-
-      await redis.rpush(
-        "zsk:queue",
-        JSON.stringify({ inn: String(inn), chat_id: 0 }) // тихий режим
-      );
+      await redis.rpush("zsk:queue", JSON.stringify({ inn, chat_id: 0 }));
       queued++;
     }
 
-    // 3) Ответ
     return new Response(
-      JSON.stringify({
-        ok: true,
-        suppliers: suppliers.length,
-        queued
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
+      JSON.stringify({ ok: true, suppliers: suppliers.length, queued }),
+      { status: 200 }
     );
-  } catch (e: any) {
-    return new Response(
-      JSON.stringify({ ok: false, error: String(e?.message || e) }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
+
+  } catch (e) {
+    return new Response(JSON.stringify({ ok: false, error: e.toString() }), { status: 500 });
   }
 }
